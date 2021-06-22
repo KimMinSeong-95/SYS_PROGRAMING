@@ -1,0 +1,231 @@
+모든것의 차이를알아야함,
+설계가 중요하다
+데이터생성과 사용함수는 몰아넣기
+2.unicode
+wbcs
+L"a"    = ansi      => a NNN
+  "a"   = unicode => a N
+_T("a") = 범용  => 둘다될수잇음
+=>한놈으로 통일 TCHAR
+
+함수 TextOutW , A 고정 TextOut 가변
+
+3.멀티스레드프로그래밍
+-프로세스 vs 프로그램
+
+ 1.Cpu Time 할당 , 메모리 할당(4GB)
+
+ 2.프라이머리스레드 - Main() - 메시지펌프
+ => 멀티스레드 - 동시성확보(디버깅이 불편)  ===== 1.스레드 여러개 쓸껀지 =====
+                      - 무한루프 > 시간이 오래걸리는작업(file I/O)
+
+ 3.동기화 - CS,Sema,Mutex(자원 선점 확인)
+
+
+WinExec ("Notepad.exe", SW_SHOWNOMAL)
+
+STARTUPINFO si = {sizeof(STARTUPINFO), };
+PROCESS_INFORMATION pi;
+
+TCHAR strPath[20] = _T("Notepad.exe");
+::CreateProcess(
+NULL 실행정보(Full Path), <<어디다 놔도 상관없음 
+strPath실행정보(Auto),
+NULL프로세스보안속성, 
+NULL스레드보안속성 , 
+FALSE기본상속,
+0우선순위DWORD,
+NULL환경블럭,
+NULL작업우선순위,
+
+&si스타트업정보,
+&pi프로세스정보);
+
+커널오브젝트
+UserModuel    = 윈도우 관리 한 오브젝트에 하나의 핸들(시스템 전역적)
+GDIModuel    = 그래픽 한 오브젝트에 하나의 핸들(프로세스 지역적)
+KernelModuel = 커널객체(파일,프로ㅔ스,스레드,뮤텍스,세마포어,이벤트) 프로세스 한정적(specific) 보안속성을 가짐, 한오브젝트에 여러핸들부여 가능
+
+Openprocess
+
+Closehandle(process,thread) => 제어할 의사가없다 => 핸들과 대상이 일체성이없다
+
+Getcurrentprocess,processID
+
+Usage Count = > 참조 수
+
+DWORD pidArray[512] = { 0, };
+DWORD cbNeeded;
+DWORD WINAPI WaitCall(LPVOID p) //스레드가 할일 선언
+EnumProcesses(pidArray,sizeof(pidArray),&cbNeeded); //현재 실행중인 프로세스들의 ID를 모아준다
+OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid); //해당 id의 핸들을 뽑아냄
+GetModuleFileNameEx(hProcesses, NULL, szBuffer, sizeof(szBuffer));//해당 핸들의 이름을 뽑아낸다
+ResetContent
+BOOL Getexitcodethread
+void Exitthread
+BOOL Terminatethread
+DWORD SuspendThread //일시중지
+DWORD ResumeThread //재개
+프로세스 우선순위 값 6
+스레드 우선순위 값 7
+
+공유자원에서 문제가 생김
+스레드간 자신만의 데이터를 가져야함
+__declspec(thread) static int m = 0; //TLS로 설정 = 스레드별로 따로 만들어라
+thread local storage
+
+동기화
+멀티스레드의 경쟁상태나 교착상태를 예방하기위해
+스레드간의 실행순서를 제어할 수 있는 기술
+
+동일 프로세스 내에서만 동기화할 수 있다는 제약
+폴링 = BOOL Wait를 스레드마다 사용 , cpu낭비 , 원자성을 가지지못해 문제를 해결하지 못함
+크리티컬 섹션 = 전역자원의 독점권이 주어진다 , 임계영역
+CRITICAL_SECTION cs;
+InitializeCriticalSection(&cs);
+DeleteCriticalSection(&cs);
+EnterCriticalSection(&cs);
+LeaveCriticalSection(&cs);
+
+뮤텍스
+HANDLE hMutex;
+hMutex = CreateMutex(NULL, FALSE, NULL(이름)); // 이름이있으면 Open으로 동작
+CloseHandle(hMutex); = 핸들다썻다 반납한다
+WaitForSingleObject(hMutex, INFINITE);
+ReleaseMutex(hMutex); = 뮤텍스반환(다 사용했다) // 반납하라고
+
+세마포어
+HANDLE hSemDown;
+hSemDown = CreateSemaphore(NULL, 3, 3, NULL);
+WaitForSingleObject(hSemDown, INFINITE);
+ReleaseSemaphore(hSemDown, 1, NULL); // 반납 꼭해라
+CloseHandle(hSemDown);
+
+이벤트
+HANDLE hEvent30;
+hEvent30 = CreateEvent(NULL, FALSE, FALSE, NULL); //자동 리셋 이벤트
+hEvent30 = CreateEvent(NULL, TRUE,FALSE, NULL); //수동 리셋 이벤트
+(ResetEvent(hEventClac); 수동으로 이벤트 초기화해줘야해)
+SetEvent(hEvent30);
+WaitForSingleObject(hEvent30, INFINITE);
+
++WAIT_ABANDONED
+
+인터락 함수 = 멀티스레드에서 안전하게 변수 값을 조작하는함수이다
+
+01000122213
+
+핸들반환---
+뮤텍스 = BOOL 타입 , 하나의 공유자원을 보호/관리
+세마포어 = int 타입 , 사용가능한 자원의 개수를 카운트하는 동기화 객체
+이벤트 = 윈도우 메시지와 비슷한 역활, 어떤 사건이 일어났음을 알리는 동기화 객체
+
+------------------------------------------
+작업복사본
+실행순서/시간 X = 폴링                       ===> 동기화를 이용해 해결
+재진입가능성(전역,정적변수X)
+------------------------------------------
+
+노크(유저모드) = 크리티컬섹션
+노크(커널모드) = 동기화객체(뮤텍스,세마포어,이벤트),프로세스,스레드,파일
+
+Context Switching
+
+파일매핑
+HANDLE hFile = CreateFile(
+		_T("c:\\temp\\Naru.txt"),
+		GENERIC_READ,
+		0,
+		NULL,
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL);
+	//1.파일 매핑 오브젝트를 생성
+	HANDLE hfMap = CreateFileMapping(
+		hFile,
+		NULL,
+		PAGE_READONLY,
+		0,
+		0,
+		NULL);
+	//2.파일 매핑 오브젝트를 가상메모리 주소공간에 연결한다
+	TCHAR* pText = (TCHAR*)MapViewOfFile(
+		hfMap, 
+		FILE_MAP_READ,
+		0, //매핑을 시작할 오프셋 위치
+		0, //연결위치
+		0); //연결할 뷰의 크기
+	//3.파일을 변수처럼 사용한다
+	AfxMessageBox(pText);
+FlushViewOfFile
+
+	//4.뒷정리
+	UnmapViewOfFile(pText);
+	CloseHandle(hfMap);
+	CloseHandle(hFile);
+
+if (IsTextUnicode(pText, 10, NULL))
+	{
+		//UNI
+		AfxMessageBox(pText);
+	}
+	else
+	{
+		//ANSI
+		char* pAnsiText = (char*)pText;
+		MessageBoxA(NULL,pAnsiText,"Beats!!",MB_OK);
+	}
+ 
+IPC (Intersection Processor Communication)
+
+사용자 메시지 함수 추가
+cpp에 함수 정의
+afx_msg LRESULT CSysProg9MemShareDlg::OnUserMessage(WPARAM w, LPARAM l)
+{
+	SetDlgItemText(IDC_EDIT, PtrFile);
+	return 0;
+}
+cpp 메시지 맵에 추가
+ON_MESSAGE(WM_USER+1 , &CSysProg9MemShareDlg::OnUserMessage)
+
+헤더에 족보 추가
+afx_msg LRESULT OnUserMessage(WPARAM w, LPARAM l);
+
+
+파이프
+
+두 프로세스간 정보를 주고 받을 수 있는 통로
+연속적인 바이트스트림을 교환할때 사용됨
+이름이 있는 파이프 = 양방향,네트워크통신가능,이름을알고있는파이프는 다른 프로세스에서 열수있음
+\\서버명\pipe\파이프이름
+
+서버
+CreateNamedPipe
+ConnectNamedPipe
+
+클라이언트
+WaitNamedPipe
+CreateFile
+
+WriteFile/ReadFile
+
+동기/비동기 IO overlap
+
+주의점
+디바이스 드라이버는 비동기 io요청을 항상 fifo 방식으로만 처리하지않음
+
+에러확인을 수행하는 적당한 방법에 대해 알고 있어야함
+
+비동기io요청을수ㅐㅇ할때 사용된 데이터버퍼와 overlapped구조체는 io요청이완료될때까지
+옮겨지거나 삭제되지 않아야함
+
+DLL
+__declspec(dllexport) 밖으로 공개하겠다
+=> 헤더파일줘야함
+.dll .lib .h .pdf
+
+명시적연결
+
+
+__try{//보호구역}
+__finally{//무조건실행 - ex)메모리반납}
